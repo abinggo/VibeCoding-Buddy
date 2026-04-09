@@ -2,7 +2,8 @@ import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate,
                    WebViewBridgeDelegate, HookServerDelegate,
-                   SessionMonitorDelegate, MenuBarControllerDelegate {
+                   SessionMonitorDelegate, MenuBarControllerDelegate,
+                   NSWindowDelegate {
 
     // MARK: - Properties
 
@@ -18,6 +19,8 @@ class AppDelegate: NSObject, NSApplicationDelegate,
 
     /// Tracks pending PreToolUse approval callbacks keyed by UUID.
     private var pendingApprovals: [String: (Data) -> Void] = [:]
+    /// Tracks timeout work items so they can be cancelled on approve/deny.
+    private var approvalTimers: [String: DispatchWorkItem] = [:]
 
     // MARK: - App Lifecycle
 
@@ -66,10 +69,6 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     }
 
     private func setupHookServer() {
-        // Install hooks into Claude Code settings
-        let installer = HookInstaller()
-        installer.installIfNeeded()
-
         let server = HookServer()
         server.delegate = self
         self.hookServer = server
@@ -79,6 +78,10 @@ class AppDelegate: NSObject, NSApplicationDelegate,
         } catch {
             print("[VibeBuddy] Hook server failed to start: \(error)")
         }
+
+        // Install hooks using the actual port the server bound to
+        let installer = HookInstaller()
+        installer.installIfNeeded(port: server.port)
     }
 
     private func setupSessionMonitor() {
@@ -106,6 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate,
         window.title = "Vibe Buddy Dashboard"
         window.backgroundColor = NSColor(red: 0.1, green: 0.1, blue: 0.18, alpha: 1)
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.center()
 
         let db = WebViewBridge(frame: window.contentView!.bounds)
@@ -180,12 +184,16 @@ class AppDelegate: NSObject, NSApplicationDelegate,
                 ])
 
                 // Timeout: auto-allow after 30 seconds if no response
-                DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-                    if let respond = self?.pendingApprovals.removeValue(forKey: approvalId) {
+                let timeoutWork = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    self.approvalTimers.removeValue(forKey: approvalId)
+                    if let respond = self.pendingApprovals.removeValue(forKey: approvalId) {
                         respond("{}".data(using: .utf8)!)
-                        self?.bridge?.sendToJS(event: "approvalTimeout", data: ["approvalId": approvalId])
+                        self.bridge?.sendToJS(event: "approvalTimeout", data: ["approvalId": approvalId])
                     }
                 }
+                self.approvalTimers[approvalId] = timeoutWork
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: timeoutWork)
             } else {
                 self.bridge?.sendToJS(event: "hookEvent", data: [
                     "type": event.hookType,
@@ -228,10 +236,21 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     }
 
     func menuBarDidSelectQuit() {
+        bridge?.teardown()
+        dashboardBridge?.teardown()
         hookServer?.stop()
         sessionMonitor?.stop()
         HookInstaller().uninstall()
         NSApp.terminate(nil)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === dashboardWindow else { return }
+        dashboardBridge?.teardown()
+        dashboardBridge = nil
+        dashboardWindow = nil
     }
 
     // MARK: - Private Handlers
@@ -254,6 +273,9 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     private func handleApprovalResponse(_ data: [String: Any], decision: String) {
         guard let approvalId = data["approvalId"] as? String,
               let respond = pendingApprovals.removeValue(forKey: approvalId) else { return }
+
+        // Cancel the timeout timer
+        approvalTimers.removeValue(forKey: approvalId)?.cancel()
 
         let response: [String: Any]
         if decision == "deny" {

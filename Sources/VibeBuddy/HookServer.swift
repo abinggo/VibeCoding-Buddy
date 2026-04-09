@@ -27,36 +27,69 @@ class HookServer {
 
     weak var delegate: HookServerDelegate?
     private var listener: NWListener?
-    let port: UInt16
+    private(set) var port: UInt16
+    private let portRange: ClosedRange<UInt16>
 
-    init(port: UInt16 = 19816) {
+    init(port: UInt16 = 19816, fallbackRange: ClosedRange<UInt16> = 19816...19826) {
         self.port = port
+        self.portRange = fallbackRange
     }
 
     func start() throws {
+        // Try the preferred port first, then fall back through the range
+        var lastError: Error?
+        for candidate in portRange {
+            do {
+                try startOnPort(candidate)
+                self.port = candidate
+                return
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError ?? NWError.posix(.EADDRINUSE)
+    }
+
+    private func startOnPort(_ targetPort: UInt16) throws {
         let params = NWParameters.tcp
         params.allowLocalEndpointReuse = true
-
-        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
-            print("[HookServer] Invalid port: \(port)")
-            return
+        guard let nwPort = NWEndpoint.Port(rawValue: targetPort) else {
+            throw NWError.posix(.EINVAL)
         }
+        // Restrict to IPv4 loopback — only accept connections from localhost
+        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: nwPort)
 
-        listener = try NWListener(using: params, on: nwPort)
-        listener?.newConnectionHandler = { [weak self] conn in
+        let newListener = try NWListener(using: params, on: nwPort)
+        newListener.newConnectionHandler = { [weak self] conn in
             self?.handleConnection(conn)
         }
-        listener?.stateUpdateHandler = { [port] state in
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var startupError: Error?
+
+        newListener.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("[HookServer] Listening on 127.0.0.1:\(port)")
+                print("[HookServer] Listening on 127.0.0.1:\(targetPort)")
+                semaphore.signal()
             case .failed(let error):
-                print("[HookServer] Failed: \(error)")
+                startupError = error
+                semaphore.signal()
             default:
                 break
             }
         }
-        listener?.start(queue: .global(qos: .userInteractive))
+        newListener.start(queue: .global(qos: .userInteractive))
+
+        // Wait briefly for the listener to report ready or failed
+        _ = semaphore.wait(timeout: .now() + 1)
+
+        if let error = startupError {
+            newListener.cancel()
+            throw error
+        }
+
+        self.listener = newListener
     }
 
     func stop() {
@@ -68,13 +101,49 @@ class HookServer {
 
     private func handleConnection(_ connection: NWConnection) {
         connection.start(queue: .global(qos: .userInteractive))
-        // Read up to 256KB to handle large payloads
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 262144) { [weak self] data, _, _, _ in
-            guard let self = self, let data = data else {
-                connection.cancel()
+        accumulateHTTPRequest(connection: connection, buffer: Data())
+    }
+
+    /// Accumulates data until we have the full HTTP body (based on Content-Length).
+    private func accumulateHTTPRequest(connection: NWConnection, buffer: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+            guard let self = self else { connection.cancel(); return }
+
+            var accumulated = buffer
+            if let data = data {
+                accumulated.append(data)
+            }
+
+            // Check if we have the full HTTP request (headers + body per Content-Length)
+            if let raw = String(data: accumulated, encoding: .utf8),
+               let headerEnd = raw.range(of: "\r\n\r\n") {
+                let headerSection = String(raw[raw.startIndex..<headerEnd.lowerBound])
+                let bodyStart = accumulated.count - raw[headerEnd.upperBound...].utf8.count
+                let bodyData = accumulated[bodyStart...]
+
+                // Parse Content-Length
+                var contentLength = 0
+                for line in headerSection.components(separatedBy: "\r\n") {
+                    if line.lowercased().hasPrefix("content-length:") {
+                        contentLength = Int(line.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)) ?? 0
+                    }
+                }
+
+                if bodyData.count >= contentLength || isComplete || error != nil {
+                    // Full request received
+                    self.processHTTPRequest(data: accumulated, connection: connection)
+                    return
+                }
+            }
+
+            // Guard against unbounded accumulation (max 1MB)
+            if accumulated.count > 1_048_576 || isComplete || error != nil {
+                self.processHTTPRequest(data: accumulated, connection: connection)
                 return
             }
-            self.processHTTPRequest(data: data, connection: connection)
+
+            // Need more data
+            self.accumulateHTTPRequest(connection: connection, buffer: accumulated)
         }
     }
 

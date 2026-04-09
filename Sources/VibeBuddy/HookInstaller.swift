@@ -18,6 +18,7 @@ class HookInstaller {
     // MARK: - Install
 
     /// Installs hook script and configures Claude Code settings.json if not already done.
+    /// Always rewrites the hook script to reflect the current port.
     func installIfNeeded(port: UInt16 = 19816) {
         writeHookScript(port: port)
         installSettingsHooks()
@@ -38,20 +39,19 @@ class HookInstaller {
         let script = """
         #!/bin/bash
         # Vibe Buddy hook — forwards Claude Code events to the companion app.
-        # Reads hook payload from stdin, POSTs to local server.
+        # Reads hook payload from stdin, POSTs to local server via stdin piping.
 
         VIBE_BUDDY_PORT="${VIBE_BUDDY_PORT:-\(port)}"
         HOOK_TYPE="$1"
 
-        INPUT=$(cat)
-
+        # Pipe stdin directly to curl to avoid shell injection via variable expansion
         RESPONSE=$(curl -s --max-time 10 -X POST "http://127.0.0.1:${VIBE_BUDDY_PORT}/hook/${HOOK_TYPE}" \\
           -H "Content-Type: application/json" \\
-          -d "$INPUT" 2>/dev/null)
+          -d @- 2>/dev/null)
 
         # For PreToolUse, output the response (approval decision)
         if [ "$HOOK_TYPE" = "PreToolUse" ] && [ -n "$RESPONSE" ]; then
-          echo "$RESPONSE"
+          printf '%s\n' "$RESPONSE"
         fi
         """
 
@@ -74,7 +74,9 @@ class HookInstaller {
             return
         }
 
-        let hookCommand = "bash \(hookScriptPath)"
+        // Shell-quote the path to handle spaces in usernames/paths
+        let escapedPath = hookScriptPath.replacingOccurrences(of: "'", with: "'\\''")
+        let hookCommand = "bash '\(escapedPath)'"
         let hookEntries: [[String: Any]] = [
             ["matcher": "PreToolUse",   "hooks": [["type": "command", "command": "\(hookCommand) PreToolUse"]]],
             ["matcher": "PostToolUse",  "hooks": [["type": "command", "command": "\(hookCommand) PostToolUse"]]],
@@ -122,6 +124,7 @@ class HookInstaller {
             withJSONObject: settings,
             options: [.prettyPrinted, .sortedKeys]
         ) else { return }
-        try? data.write(to: URL(fileURLWithPath: settingsPath))
+        // Atomic write to prevent corruption if the process is interrupted
+        try? data.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
     }
 }

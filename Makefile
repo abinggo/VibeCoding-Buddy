@@ -22,6 +22,10 @@ bundle: release
 	mkdir -p "$(BUNDLE_DIR)/Contents/Resources"
 	cp .build/release/$(EXECUTABLE) "$(BUNDLE_DIR)/Contents/MacOS/"
 	cp Info.plist "$(BUNDLE_DIR)/Contents/"
+	@# Copy SPM bundled resources into the .app
+	@if [ -d ".build/release/VibeBuddy_VibeBuddy.bundle" ]; then \
+		cp -R .build/release/VibeBuddy_VibeBuddy.bundle "$(BUNDLE_DIR)/Contents/Resources/"; \
+	fi
 	@echo "Built $(BUNDLE_DIR)"
 
 dmg: bundle

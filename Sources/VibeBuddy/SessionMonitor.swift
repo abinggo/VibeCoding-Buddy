@@ -35,7 +35,14 @@ class SessionMonitor {
     private var fileDescriptor: Int32 = -1
     private var dispatchSource: DispatchSourceFileSystemObject?
     private var pollTimer: DispatchSourceTimer?
-    private(set) var activeSessions: [AgentSession] = []
+
+    /// Serial queue protecting activeSessions and scan operations
+    private let queue = DispatchQueue(label: "com.vibebuddy.session-monitor")
+    private var _activeSessions: [AgentSession] = []
+
+    var activeSessions: [AgentSession] {
+        queue.sync { _activeSessions }
+    }
 
     init(claudeDir: String = NSHomeDirectory() + "/.claude") {
         self.sessionsDir = claudeDir + "/sessions"
@@ -45,7 +52,7 @@ class SessionMonitor {
         // Ensure directory exists
         try? FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
 
-        scanSessions()
+        queue.async { self._scanSessions() }
         startWatching()
         startPolling()
     }
@@ -55,10 +62,7 @@ class SessionMonitor {
         dispatchSource = nil
         pollTimer?.cancel()
         pollTimer = nil
-        if fileDescriptor >= 0 {
-            close(fileDescriptor)
-            fileDescriptor = -1
-        }
+        // fd is closed in the dispatchSource cancel handler only — no double close
     }
 
     // MARK: - File System Watching
@@ -73,15 +77,15 @@ class SessionMonitor {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fileDescriptor,
             eventMask: [.write, .rename, .delete],
-            queue: .global(qos: .utility)
+            queue: queue
         )
         source.setEventHandler { [weak self] in
-            self?.scanSessions()
+            self?._scanSessions()
         }
         source.setCancelHandler { [weak self] in
-            guard let fd = self?.fileDescriptor, fd >= 0 else { return }
-            close(fd)
-            self?.fileDescriptor = -1
+            guard let self = self, self.fileDescriptor >= 0 else { return }
+            close(self.fileDescriptor)
+            self.fileDescriptor = -1
         }
         source.resume()
         self.dispatchSource = source
@@ -90,18 +94,18 @@ class SessionMonitor {
     // MARK: - Polling (fallback for process death without file cleanup)
 
     private func startPolling() {
-        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 5, repeating: 5)
         timer.setEventHandler { [weak self] in
-            self?.scanSessions()
+            self?._scanSessions()
         }
         timer.resume()
         self.pollTimer = timer
     }
 
-    // MARK: - Scan
+    // MARK: - Scan (must be called on self.queue)
 
-    private func scanSessions() {
+    private func _scanSessions() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(atPath: sessionsDir) else {
             updateIfChanged([])
@@ -128,12 +132,12 @@ class SessionMonitor {
     }
 
     private func updateIfChanged(_ sessions: [AgentSession]) {
-        let oldIds = Set(activeSessions.map(\.sessionId))
+        let oldIds = Set(_activeSessions.map(\.sessionId))
         let newIds = Set(sessions.map(\.sessionId))
 
         guard oldIds != newIds else { return }
 
-        activeSessions = sessions
+        _activeSessions = sessions
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.delegate?.sessionMonitor(self, didUpdateSessions: sessions)
