@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="css/nes.min.css">
+    <link rel="stylesheet" href="css/notch.css">
+</head>
+<body>
+    <div id="notch-island">
+        <!-- Collapsed: minimal status bar -->
+        <div id="collapsed-view">
+            <span class="agent-count" id="agent-count">0</span>
+            <span class="status-text" id="status-text">No agents</span>
+        </div>
+
+        <!-- Expanded: full detail view -->
+        <div id="expanded-view">
+            <canvas id="agent-canvas"></canvas>
+
+            <div id="agent-detail-card" class="nes-container is-dark with-title" style="display:none;">
+                <p class="title" id="detail-title">Agent</p>
+                <p><span class="nes-text is-primary">Status:</span> <span id="detail-status">-</span></p>
+                <p><span class="nes-text is-primary">Project:</span> <span id="detail-cwd">-</span></p>
+                <p><span class="nes-text is-primary">Running:</span> <span id="detail-duration">-</span></p>
+                <p><span class="nes-text is-primary">Last Tool:</span> <span id="detail-tool">-</span></p>
+            </div>
+
+            <div id="approval-panel" style="display:none;">
+                <div class="nes-container is-dark is-rounded" style="font-size:7px; padding:8px;">
+                    <p class="nes-text is-warning" id="approval-tool">Tool: ?</p>
+                    <p id="approval-detail" style="color:#aaa; margin:4px 0;"></p>
+                    <div class="approval-buttons">
+                        <button class="nes-btn is-success" id="btn-approve">Approve</button>
+                        <button class="nes-btn is-error" id="btn-deny">Deny</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/bridge.js"></script>
+    <script src="js/sprite-renderer.js"></script>
+    <script src="js/animation-system.js"></script>
+    <script src="js/notch-app.js"></script>
+</body>
+</html>

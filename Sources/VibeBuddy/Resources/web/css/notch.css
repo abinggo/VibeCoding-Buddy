@@ -1,0 +1,112 @@
+/* notch.css — Notch island overlay styles */
+
+@font-face {
+    font-family: 'Press Start 2P';
+    src: url('../fonts/PressStart2P.woff2') format('woff2');
+    font-display: swap;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    background: transparent !important;
+    overflow: hidden;
+    font-family: 'Press Start 2P', monospace;
+    color: #fff;
+    font-size: 8px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ── Notch Island Container ── */
+#notch-island {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Collapsed View (visible by default) ── */
+#collapsed-view {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 16px;
+}
+
+.agent-count {
+    font-size: 10px;
+    color: #4ade80;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.status-text {
+    font-size: 7px;
+    color: #aaa;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Expanded View (shown on hover) ── */
+#expanded-view {
+    display: none;
+    width: 100%;
+    height: 100%;
+    padding: 44px 16px 16px 16px;
+    background: rgba(0, 0, 0, 0.88);
+    border-radius: 0 0 18px 18px;
+    overflow-y: auto;
+}
+
+#agent-canvas {
+    width: 100%;
+    height: 100px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* ── Expanded / Collapsed Toggle ── */
+body.expanded #collapsed-view {
+    display: none;
+}
+
+body.expanded #expanded-view {
+    display: block;
+}
+
+/* ── Agent Detail Card ── */
+#agent-detail-card {
+    font-size: 7px;
+    margin-top: 8px;
+}
+
+#agent-detail-card p {
+    margin: 2px 0;
+}
+
+/* ── Approval Panel ── */
+#approval-panel {
+    margin-top: 8px;
+}
+
+#approval-panel .approval-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#approval-panel .nes-btn {
+    font-size: 7px;
+    padding: 4px 12px;
+}
