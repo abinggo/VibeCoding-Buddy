@@ -1,0 +1,70 @@
+/* dashboard.css — Pixel art dashboard styles */
+
+@font-face {
+    font-family: 'Press Start 2P';
+    src: url('../fonts/PressStart2P.woff2') format('woff2');
+    font-display: swap;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Press Start 2P', monospace;
+}
+
+body {
+    background: #1a1a2e;
+    color: #fff;
+    font-size: 8px;
+    padding: 16px;
+}
+
+.dashboard {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.dashboard h2 {
+    font-size: 12px;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.stats-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.stats-row > div {
+    flex: 1;
+    text-align: center;
+}
+
+.big-number {
+    font-size: 24px;
+    color: #4ade80;
+    margin-top: 8px;
+}
+
+.chart-section {
+    margin-top: 16px;
+}
+
+.chart-section canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 100%;
+    height: 200px;
+}
+
+.theme-section {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.theme-section select {
+    font-size: 8px;
+    margin-left: 8px;
+}

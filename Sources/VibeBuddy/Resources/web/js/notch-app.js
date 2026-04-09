@@ -1,6 +1,6 @@
 /**
  * notch-app.js — Notch island main logic
- * Manages collapsed/expanded views and agent status display.
+ * Manages collapsed/expanded views, agent status, detail cards, and approval UI.
  */
 (function() {
     'use strict';
@@ -8,26 +8,45 @@
     // ── State ──────────────────────────────────────────────
     var state = {
         agents: [],
-        expanded: false
+        expanded: false,
+        currentApprovalId: null
     };
 
     // ── DOM refs ───────────────────────────────────────────
     var countEl = document.getElementById('agent-count');
     var textEl = document.getElementById('status-text');
+    var canvas = document.getElementById('agent-canvas');
 
-    // ── Event Handlers ─────────────────────────────────────
+    // ── Sprite System Init ─────────────────────────────────
+    var renderer = new SpriteRenderer(canvas);
+    var animSystem = new AnimationSystem(renderer);
+    window.spriteRenderer = renderer;
+    window.animSystem = animSystem;
+
+    function resizeCanvas() {
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * 2;
+        canvas.height = rect.height * 2;
+        renderer.ctx.imageSmoothingEnabled = false;
+    }
+
+    // ── Canvas Click ───────────────────────────────────────
+    canvas.addEventListener('click', function(e) {
+        var rect = canvas.getBoundingClientRect();
+        var x = (e.clientX - rect.left) * 2;
+        var y = (e.clientY - rect.top) * 2;
+        renderer.handleClick(x, y);
+    });
+
+    // ── Agent Updates ──────────────────────────────────────
 
     window.vibe.on('agentsUpdate', function(data) {
         state.agents = data.agents || [];
         renderCollapsed();
-        // SpriteRenderer integration will be added in Task 7
-        if (window.animSystem) {
-            window.animSystem.updateAgents(state.agents);
-        }
+        animSystem.updateAgents(state.agents);
     });
 
     window.vibe.on('hookEvent', function(data) {
-        // Update agent status based on hook events
         if (data.type === 'PostToolUse' || data.type === 'Stop') {
             state.agents.forEach(function(a) {
                 if (a.sessionId === data.sessionId) {
@@ -36,25 +55,84 @@
                 }
             });
             renderCollapsed();
-            if (window.animSystem) {
-                window.animSystem.updateAgents(state.agents);
-            }
+            animSystem.updateAgents(state.agents);
         }
     });
+
+    // ── Expand / Collapse ──────────────────────────────────
 
     window.vibe.on('expand', function() {
         state.expanded = true;
         document.body.classList.add('expanded');
-        if (window.spriteRenderer) window.spriteRenderer.start();
+        resizeCanvas();
+        renderer.start();
     });
 
     window.vibe.on('collapse', function() {
         state.expanded = false;
         document.body.classList.remove('expanded');
-        if (window.spriteRenderer) window.spriteRenderer.stop();
+        renderer.stop();
+        // Hide detail card when collapsing
+        document.getElementById('agent-detail-card').style.display = 'none';
     });
 
-    // ── Render ─────────────────────────────────────────────
+    // ── Agent Detail ───────────────────────────────────────
+
+    window.vibe.on('showAgentDetail', function(data) {
+        var card = document.getElementById('agent-detail-card');
+        document.getElementById('detail-title').textContent = data.name || 'Agent';
+        document.getElementById('detail-status').textContent = data.status || 'working';
+        document.getElementById('detail-cwd').textContent = shortenPath(data.cwd || '-');
+        document.getElementById('detail-duration').textContent = formatDuration(data.startedAt);
+        document.getElementById('detail-tool').textContent = data.lastTool || '-';
+        card.style.display = 'block';
+    });
+
+    // ── Approval UI ────────────────────────────────────────
+
+    window.vibe.on('approvalRequest', function(data) {
+        state.currentApprovalId = data.approvalId;
+        var panel = document.getElementById('approval-panel');
+        document.getElementById('approval-tool').textContent = 'Tool: ' + data.toolName;
+
+        var detail = '';
+        if (data.toolInput) {
+            if (data.toolInput.command) detail = data.toolInput.command;
+            else if (data.toolInput.file_path) detail = data.toolInput.file_path;
+            else if (data.toolInput.pattern) detail = data.toolInput.pattern;
+        }
+        document.getElementById('approval-detail').textContent = detail;
+        panel.style.display = 'block';
+    });
+
+    window.vibe.on('approvalTimeout', function() {
+        document.getElementById('approval-panel').style.display = 'none';
+        state.currentApprovalId = null;
+    });
+
+    document.getElementById('btn-approve').addEventListener('click', function() {
+        if (state.currentApprovalId) {
+            window.vibe.send('approve', { approvalId: state.currentApprovalId });
+            document.getElementById('approval-panel').style.display = 'none';
+            state.currentApprovalId = null;
+        }
+    });
+
+    document.getElementById('btn-deny').addEventListener('click', function() {
+        if (state.currentApprovalId) {
+            window.vibe.send('deny', { approvalId: state.currentApprovalId });
+            document.getElementById('approval-panel').style.display = 'none';
+            state.currentApprovalId = null;
+        }
+    });
+
+    // ── Theme ──────────────────────────────────────────────
+
+    window.vibe.on('setTheme', function(data) {
+        if (data.theme) animSystem.setTheme(data.theme);
+    });
+
+    // ── Render Helpers ─────────────────────────────────────
 
     function renderCollapsed() {
         var count = state.agents.length;
@@ -68,6 +146,19 @@
         } else {
             textEl.textContent = count + ' agents working';
         }
+    }
+
+    function shortenPath(p) {
+        var parts = p.split('/');
+        return parts.length > 3 ? '.../' + parts.slice(-2).join('/') : p;
+    }
+
+    function formatDuration(startMs) {
+        if (!startMs) return '-';
+        var secs = Math.floor((Date.now() - startMs) / 1000);
+        if (secs < 60) return secs + 's';
+        if (secs < 3600) return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+        return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
     }
 
     // ── Init ───────────────────────────────────────────────
