@@ -116,6 +116,7 @@
 
     window.vibe.on('approvalRequest', function(data) {
         state.currentApprovalId = data.approvalId;
+        state.currentApprovalSessionId = data.sessionId || '';
         var panel = document.getElementById('approval-panel');
         document.getElementById('approval-tool').textContent = 'Tool: ' + data.toolName;
 
@@ -132,21 +133,24 @@
     window.vibe.on('approvalTimeout', function() {
         document.getElementById('approval-panel').style.display = 'none';
         state.currentApprovalId = null;
+        state.currentApprovalSessionId = null;
     });
 
     document.getElementById('btn-approve').addEventListener('click', function() {
         if (state.currentApprovalId) {
-            window.vibe.send('approve', { approvalId: state.currentApprovalId });
+            window.vibe.send('approve', { approvalId: state.currentApprovalId, sessionId: state.currentApprovalSessionId });
             document.getElementById('approval-panel').style.display = 'none';
             state.currentApprovalId = null;
+            state.currentApprovalSessionId = null;
         }
     });
 
     document.getElementById('btn-deny').addEventListener('click', function() {
         if (state.currentApprovalId) {
-            window.vibe.send('deny', { approvalId: state.currentApprovalId });
+            window.vibe.send('deny', { approvalId: state.currentApprovalId, sessionId: state.currentApprovalSessionId });
             document.getElementById('approval-panel').style.display = 'none';
             state.currentApprovalId = null;
+            state.currentApprovalSessionId = null;
         }
     });
 

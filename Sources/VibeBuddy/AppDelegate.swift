@@ -24,6 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate,
     private var pendingApprovals: [String: (Data) -> Void] = [:]
     /// Tracks timeout work items so they can be cancelled on approve/deny.
     private var approvalTimers: [String: DispatchWorkItem] = [:]
+    /// Tracks which sessions have a pending Bash approval (prevents idle timeout).
+    private var pendingApprovalSessions: Set<String> = []
     /// Tracks hook-derived status per sessionId. Values: "working", "waiting"
     private var sessionStatus: [String: String] = [:]
     /// Tracks the last tool used per sessionId.
@@ -154,8 +156,10 @@ class AppDelegate: NSObject, NSApplicationDelegate,
 
         for (sessionId, lastActivity) in sessionLastActivity {
             // Only timeout sessions that have had at least one tool use.
-            // If only UserPromptSubmit fired, Claude is still thinking — don't timeout.
             guard sessionHadToolUse[sessionId] == true else { continue }
+
+            // Never timeout a session that has a pending Bash approval.
+            guard !pendingApprovalSessions.contains(sessionId) else { continue }
 
             if now.timeIntervalSince(lastActivity) > idleTimeout,
                sessionStatus[sessionId] != "waiting" {
@@ -319,6 +323,7 @@ class AppDelegate: NSObject, NSApplicationDelegate,
                 if toolName == "Bash" {
                     let approvalId = UUID().uuidString
                     self.pendingApprovals[approvalId] = respond
+                    self.pendingApprovalSessions.insert(event.sessionId)
 
                     // Extract command preview from tool_input
                     var detail = ""
@@ -329,7 +334,8 @@ class AppDelegate: NSObject, NSApplicationDelegate,
                     self.bridge?.sendToJS(event: "approvalRequest", data: [
                         "approvalId": approvalId,
                         "toolName": toolName,
-                        "toolInput": ["command": detail]
+                        "toolInput": ["command": detail],
+                        "sessionId": event.sessionId
                     ])
 
                     // Auto-expand the panel so user sees the approval
@@ -338,12 +344,13 @@ class AppDelegate: NSObject, NSApplicationDelegate,
                     }
 
                     // Timeout: auto-allow after 30 seconds if no response
+                    let sid = event.sessionId
                     let timer = DispatchWorkItem { [weak self] in
                         guard let self = self,
                               let cb = self.pendingApprovals.removeValue(forKey: approvalId) else { return }
                         self.approvalTimers.removeValue(forKey: approvalId)
+                        self.pendingApprovalSessions.remove(sid)
                         self.bridge?.sendToJS(event: "approvalTimeout")
-                        // Auto-allow on timeout (don't block Claude Code)
                         cb("{}".data(using: .utf8)!)
                     }
                     self.approvalTimers[approvalId] = timer
@@ -483,6 +490,11 @@ class AppDelegate: NSObject, NSApplicationDelegate,
               let respond = pendingApprovals.removeValue(forKey: approvalId) else { return }
 
         approvalTimers.removeValue(forKey: approvalId)?.cancel()
+
+        // Clear pending approval session tracking
+        if let sid = data["sessionId"] as? String {
+            pendingApprovalSessions.remove(sid)
+        }
 
         let response: [String: Any]
         if decision == "deny" {
