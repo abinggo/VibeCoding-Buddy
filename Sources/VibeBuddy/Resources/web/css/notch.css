@@ -1,4 +1,4 @@
-/* notch.css — Notch island overlay styles */
+/* notch.css — Floating bubble + expanded panel styles */
 
 @font-face {
     font-family: 'Press Start 2P';
@@ -22,7 +22,7 @@ html, body {
     user-select: none;
 }
 
-/* ── Notch Island Container ── */
+/* ── Container ── */
 #notch-island {
     position: absolute;
     top: 0;
@@ -34,49 +34,247 @@ html, body {
     justify-content: center;
 }
 
-/* ── Collapsed View (visible by default) ── */
+/* ── Collapsed: Floating Bubble (3D) ── */
 #collapsed-view {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 4px 16px;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    cursor: grab;
+    transition: box-shadow 0.3s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+
+    /* 3D sphere effect */
+    background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,0.18) 0%, transparent 50%),
+        radial-gradient(circle at 65% 70%, rgba(0,0,0,0.4) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, #1e1e3a 0%, #0a0a1a 100%);
+    box-shadow:
+        0 6px 24px rgba(0, 0, 0, 0.6),
+        0 0 0 1.5px rgba(255, 255, 255, 0.12),
+        inset 0 2px 6px rgba(255, 255, 255, 0.1),
+        inset 0 -4px 8px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(74, 222, 128, 0.2);
 }
 
+#collapsed-view:hover {
+    transform: scale(1.06);
+    box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.7),
+        0 0 0 1.5px rgba(255, 255, 255, 0.18),
+        inset 0 2px 6px rgba(255, 255, 255, 0.12),
+        inset 0 -4px 8px rgba(0, 0, 0, 0.4),
+        0 0 30px rgba(74, 222, 128, 0.3);
+}
+
+#collapsed-view:active {
+    cursor: grabbing;
+    transform: scale(0.97);
+}
+
+/* Status ring around bubble */
+#collapsed-view::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    transition: border-color 0.3s;
+    pointer-events: none;
+}
+
+body.status-working #collapsed-view::before {
+    border-color: #4ade80;
+    animation: pulse-ring 1.5s ease-in-out infinite;
+}
+
+body.status-waiting #collapsed-view::before {
+    border-color: #fbbf24;
+    animation: pulse-ring 2.5s ease-in-out infinite;
+}
+
+body.status-idle #collapsed-view::before {
+    border-color: rgba(136, 136, 136, 0.3);
+}
+
+@keyframes pulse-ring {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* Agent count — bigger and glowing */
 .agent-count {
-    font-size: 10px;
+    font-size: 18px;
     color: #4ade80;
-    text-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+    text-shadow: 0 0 12px rgba(74, 222, 128, 0.7);
+    line-height: 1;
+    z-index: 1;
 }
 
+body.status-waiting .agent-count {
+    color: #fbbf24;
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.7);
+}
+
+body.status-idle .agent-count {
+    color: #888;
+    text-shadow: none;
+}
+
+/* Status text under count */
 .status-text {
-    font-size: 7px;
+    font-size: 5px;
     color: #aaa;
-    max-width: 200px;
+    margin-top: 3px;
+    max-width: 58px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
+    z-index: 1;
 }
 
-/* ── Expanded View (shown on hover) ── */
+/* Status dot indicator */
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    z-index: 2;
+}
+
+body.status-working .status-dot {
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+    animation: dot-pulse 1s ease-in-out infinite;
+}
+
+body.status-waiting .status-dot {
+    background: #fbbf24;
+    box-shadow: 0 0 6px #fbbf24;
+    animation: dot-pulse 2s ease-in-out infinite;
+}
+
+body.status-idle .status-dot {
+    background: #555;
+}
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ── Expanded: Detail Panel ── */
 #expanded-view {
     display: none;
     width: 100%;
     height: 100%;
-    padding: 44px 16px 16px 16px;
-    background: rgba(0, 0, 0, 0.88);
-    border-radius: 0 0 18px 18px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, #16162a 0%, #0e0e1c 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     overflow-y: auto;
 }
 
+#expanded-view::-webkit-scrollbar {
+    width: 4px;
+}
+
+#expanded-view::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}
+
+/* ── Expanded Header ── */
+#expanded-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.header-title {
+    font-size: 9px;
+    color: #4ade80;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+
+.header-agent-count {
+    font-size: 7px;
+    color: #888;
+}
+
+/* ── Stats Bar ── */
+#stats-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.stat-card {
+    flex: 1;
+    min-width: 70px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 6px 8px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 5px;
+    color: #666;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 10px;
+    color: #4ade80;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
+}
+
+.stat-value.tokens {
+    color: #60a5fa;
+    text-shadow: 0 0 6px rgba(96, 165, 250, 0.3);
+}
+
+.stat-value.sessions {
+    color: #c084fc;
+    text-shadow: 0 0 6px rgba(192, 132, 252, 0.3);
+}
+
+/* ── Canvas ── */
 #agent-canvas {
     width: 100%;
-    height: 100px;
+    height: 140px;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
+    margin-bottom: 8px;
+    background: #0a0a14;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-/* ── Expanded / Collapsed Toggle ── */
+/* ── Toggle ── */
 body.expanded #collapsed-view {
     display: none;
 }
@@ -85,14 +283,77 @@ body.expanded #expanded-view {
     display: block;
 }
 
+body.expanded #notch-island {
+    align-items: stretch;
+}
+
 /* ── Agent Detail Card ── */
 #agent-detail-card {
     font-size: 7px;
     margin-top: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
 }
 
-#agent-detail-card p {
-    margin: 2px 0;
+#agent-detail-card .detail-title {
+    color: #4ade80;
+    font-size: 8px;
+    margin-bottom: 6px;
+}
+
+#agent-detail-card .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+#agent-detail-card .detail-label {
+    color: #666;
+}
+
+#agent-detail-card .detail-value {
+    color: #ccc;
+}
+
+/* ── Agent List ── */
+#agent-list {
+    margin-bottom: 8px;
+}
+
+.agent-row {
+    font-size: 7px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1.6;
+    transition: background 0.15s, border-color 0.15s;
+    border: 1px solid transparent;
+}
+
+.agent-row:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(74, 222, 128, 0.2);
+}
+
+.agent-row .agent-name {
+    color: #e0e0e0;
+}
+
+.agent-row .agent-meta {
+    color: #666;
+    font-size: 6px;
+}
+
+#no-agents-msg {
+    font-size: 7px;
+    text-align: center;
+    color: #444;
+    padding: 20px 0;
 }
 
 /* ── Approval Panel ── */
@@ -100,13 +361,96 @@ body.expanded #expanded-view {
     margin-top: 8px;
 }
 
-#approval-panel .approval-buttons {
+.approval-container {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 7px;
+}
+
+.approval-title {
+    color: #fbbf24;
+    font-size: 8px;
+    margin-bottom: 6px;
+}
+
+.approval-tool {
+    color: #ccc;
+}
+
+.approval-detail {
+    color: #888;
+    margin: 4px 0;
+    word-break: break-all;
+    max-height: 40px;
+    overflow: hidden;
+}
+
+.approval-buttons {
     display: flex;
     gap: 8px;
     margin-top: 8px;
 }
 
-#approval-panel .nes-btn {
+.btn-pixel {
+    font-family: 'Press Start 2P', monospace;
     font-size: 7px;
-    padding: 4px 12px;
+    padding: 6px 14px;
+    border: 2px solid;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    image-rendering: pixelated;
+}
+
+.btn-pixel:hover {
+    transform: translateY(-1px);
+}
+
+.btn-pixel:active {
+    transform: translateY(1px);
+}
+
+.btn-approve {
+    background: #22c55e;
+    border-color: #16a34a;
+    color: #fff;
+    box-shadow: 0 3px 0 #15803d;
+}
+
+.btn-approve:active {
+    box-shadow: 0 1px 0 #15803d;
+}
+
+.btn-deny {
+    background: #ef4444;
+    border-color: #dc2626;
+    color: #fff;
+    box-shadow: 0 3px 0 #b91c1c;
+}
+
+.btn-deny:active {
+    box-shadow: 0 1px 0 #b91c1c;
+}
+
+/* ── Footer ── */
+#panel-footer {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 5px;
+    color: #444;
+}
+
+.footer-link {
+    color: #4ade80;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.footer-link:hover {
+    color: #86efac;
 }

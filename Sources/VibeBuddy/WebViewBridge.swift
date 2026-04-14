@@ -13,7 +13,7 @@ protocol WebViewBridgeDelegate: AnyObject {
     func webViewBridge(_ bridge: WebViewBridge, didReceiveAction action: String, data: [String: Any])
 }
 
-class WebViewBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+class WebViewBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
 
     let webView: WKWebView
     weak var delegate: WebViewBridgeDelegate?
@@ -23,7 +23,8 @@ class WebViewBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
     init(frame: NSRect) {
         let config = WKWebViewConfiguration()
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        // Disable developer extras to remove "Reload / Inspect Element" context menu
+        config.preferences.setValue(false, forKey: "developerExtrasEnabled")
 
         let cc = WKUserContentController()
         config.userContentController = cc
@@ -38,6 +39,7 @@ class WebViewBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         // Use weak proxy to break WKUserContentController -> WebViewBridge retain cycle
         cc.add(WeakScriptMessageHandler(self), name: "vibe")
         webView.navigationDelegate = self
+        webView.uiDelegate = self
     }
 
     /// Removes the message handler to break the retain cycle on teardown.
@@ -105,6 +107,58 @@ class WebViewBridge: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
             return
         }
         delegate?.webViewBridge(self, didReceiveAction: action, data: body)
+    }
+
+    // MARK: - WKUIDelegate (JS prompt/alert/confirm support)
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptTextInputPanelWithPrompt prompt: String,
+        defaultText: String?,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping (String?) -> Void
+    ) {
+        let alert = NSAlert()
+        alert.messageText = prompt
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        input.stringValue = defaultText ?? ""
+        alert.accessoryView = input
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            completionHandler(input.stringValue)
+        } else {
+            completionHandler(nil)
+        }
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptAlertPanelWithMessage message: String,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping () -> Void
+    ) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+        completionHandler()
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        runJavaScriptConfirmPanelWithMessage message: String,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+        completionHandler(alert.runModal() == .alertFirstButtonReturn)
     }
 }
 

@@ -3,38 +3,91 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="css/nes.min.css">
     <link rel="stylesheet" href="css/notch.css">
 </head>
-<body>
+<body class="status-idle">
     <div id="notch-island">
-        <!-- Collapsed: minimal status bar -->
+        <!-- Collapsed: floating bubble content -->
         <div id="collapsed-view">
             <span class="agent-count" id="agent-count">0</span>
-            <span class="status-text" id="status-text">No agents</span>
+            <span class="status-text" id="status-text">Idle</span>
+            <span class="status-dot"></span>
         </div>
 
         <!-- Expanded: full detail view -->
         <div id="expanded-view">
-            <canvas id="agent-canvas"></canvas>
-
-            <div id="agent-detail-card" class="nes-container is-dark with-title" style="display:none;">
-                <p class="title" id="detail-title">Agent</p>
-                <p><span class="nes-text is-primary">Status:</span> <span id="detail-status">-</span></p>
-                <p><span class="nes-text is-primary">Project:</span> <span id="detail-cwd">-</span></p>
-                <p><span class="nes-text is-primary">Running:</span> <span id="detail-duration">-</span></p>
-                <p><span class="nes-text is-primary">Last Tool:</span> <span id="detail-tool">-</span></p>
+            <div id="expanded-header">
+                <span class="header-title">Vibe Buddy</span>
+                <span class="header-agent-count" id="header-count">0 agents</span>
             </div>
 
+            <!-- Stats bar -->
+            <div id="stats-bar">
+                <div class="stat-card">
+                    <div class="stat-label">Today Msg</div>
+                    <div class="stat-value tokens" id="stat-tokens">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Today Tokens</div>
+                    <div class="stat-value" id="stat-messages">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Sessions</div>
+                    <div class="stat-value sessions" id="stat-sessions">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Today Tools</div>
+                    <div class="stat-value" id="stat-tools">0</div>
+                </div>
+            </div>
+
+            <!-- Pixel art canvas -->
+            <canvas id="agent-canvas"></canvas>
+
+            <!-- Agent list -->
+            <div id="agent-list"></div>
+
+            <div id="no-agents-msg">
+                Waiting for Claude Code sessions...
+            </div>
+
+            <!-- Agent detail card -->
+            <div id="agent-detail-card" style="display:none;">
+                <div class="detail-title" id="detail-title">Agent</div>
+                <div class="detail-row">
+                    <span class="detail-label">Status</span>
+                    <span class="detail-value" id="detail-status">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Project</span>
+                    <span class="detail-value" id="detail-cwd">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Running</span>
+                    <span class="detail-value" id="detail-duration">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Last Tool</span>
+                    <span class="detail-value" id="detail-tool">-</span>
+                </div>
+            </div>
+
+            <!-- Approval panel -->
             <div id="approval-panel" style="display:none;">
-                <div class="nes-container is-dark is-rounded" style="font-size:7px; padding:8px;">
-                    <p class="nes-text is-warning" id="approval-tool">Tool: ?</p>
-                    <p id="approval-detail" style="color:#aaa; margin:4px 0;"></p>
+                <div class="approval-container">
+                    <div class="approval-title">Permission Request</div>
+                    <p class="approval-tool" id="approval-tool">Tool: ?</p>
+                    <p class="approval-detail" id="approval-detail"></p>
                     <div class="approval-buttons">
-                        <button class="nes-btn is-success" id="btn-approve">Approve</button>
-                        <button class="nes-btn is-error" id="btn-deny">Deny</button>
+                        <button class="btn-pixel btn-approve" id="btn-approve">Approve</button>
+                        <button class="btn-pixel btn-deny" id="btn-deny">Deny</button>
                     </div>
                 </div>
+            </div>
+
+            <div id="panel-footer">
+                <span>Vibe Buddy v0.1</span>
+                <span class="footer-link" id="btn-dashboard">Dashboard</span>
             </div>
         </div>
     </div>

@@ -59,7 +59,8 @@ class HookServer {
         // Restrict to IPv4 loopback — only accept connections from localhost
         params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: nwPort)
 
-        let newListener = try NWListener(using: params, on: nwPort)
+        // Use NWListener(using:) without on: — the port is already in requiredLocalEndpoint
+        let newListener = try NWListener(using: params)
         newListener.newConnectionHandler = { [weak self] conn in
             self?.handleConnection(conn)
         }
